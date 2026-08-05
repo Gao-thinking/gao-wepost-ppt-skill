@@ -1,10 +1,10 @@
 ---
-name: gwrite-wepost-ppt-skill
+name: gao-wepost-ppt-skill
 description: >
   PPT/PDF 一键转公众号文章全流程：输入 1-N 份 PPT/PDF + 格式框架（md）→ 自动提取幻灯片图与文字 → 贝叶斯过滤视频页（黑色 >80%）→ 按框架嵌入成文（中文单语）→ 反AI校对 → 拷打 → gwrite 预览 → 交付。仅 1 次打断，不部署不提交。
 ---
 
-# gwrite-wepost-ppt-skill
+# gao-wepost-ppt-skill
 
 用户说"把这份 PPT/PDF 变成公众号文章""按这个模板写一下我的 deck" → 执行以下流程。**只在 ⬜ 处弹窗**（用 `question` 工具），其余全部自动完成。
 
@@ -146,7 +146,7 @@ locale: zh
 #### 2.1 运行提取脚本
 
 ```bash
-python3 ~/.agents/skills/gwrite-wepost-ppt-skill/scripts/extract_slides.py \
+python3 ~/.agents/skills/gao-wepost-ppt-skill/scripts/extract_slides.py \
   -i /path/to/deck.pdf -o /tmp/ppt-extract/ 2>&1
 ```
 
@@ -258,9 +258,9 @@ curl -sS "http://127.0.0.1:45678/api/preview-html?id=$ID" -o /tmp/preview-zh.htm
 ### 5.4 升级执行
 
 ```bash
-git -C ~/.agents/skills/gwrite-wepost-ppt-skill add -A
-git -C ~/.agents/skills/gwrite-wepost-ppt-skill commit -m "upgrade: <一句话依据>"
-git -C ~/.agents/skills/gwrite-wepost-ppt-skill push origin main
+git -C ~/.agents/skills/gao-wepost-ppt-skill add -A
+git -C ~/.agents/skills/gao-wepost-ppt-skill commit -m "upgrade: <一句话依据>"
+git -C ~/.agents/skills/gao-wepost-ppt-skill push origin main
 ```
 
 升级只改 SKILL.md/脚本自身，不新建文档；踩坑补进 §6 A4；每次升级独立 commit，回滚 = `git revert`。运行中的问题先修本次输出，改不改 skill 规则由复盘决定。
@@ -282,7 +282,7 @@ brew install --cask libreoffice
 ### A2 提取脚本用法
 
 ```bash
-python3 ~/.agents/skills/gwrite-wepost-ppt-skill/scripts/extract_slides.py \
+python3 ~/.agents/skills/gao-wepost-ppt-skill/scripts/extract_slides.py \
   -i deck.pdf [-i deck2.pptx ...] \
   -o /tmp/ppt-extract/ \
   [--dark-ratio 0.80] [--brightness-threshold 30] [--dpi 150]
@@ -314,4 +314,4 @@ dark_ratio > 0.80 且 text 丰富          → 深色设计页（保留，标注
 
 - **本 skill 不产出 git 操作**：交付即止，不 add/commit/push、不上传 CDN、不打 Deploy tag
 - **内容用 MDX 后缀但纯 Markdown**：正文不能写 JSX 组件，只能用 Markdown + GFM
-- **同源仓库同步**：本 skill 主仓库 `Gao-thinking/gwrite-wepost-ppt-skill`，更新后同步一份到主 repo `scripts/gwrite-wepost-ppt-skill.md`（git add 精确文件 + 无 Deploy tag）
+- **同源仓库同步**：本 skill 主仓库 `Gao-thinking/gao-wepost-ppt-skill`，更新后同步一份到主 repo `scripts/gao-wepost-ppt-skill.md`（git add 精确文件 + 无 Deploy tag）
