@@ -21,7 +21,7 @@ description: >
 - 工具：`python3`（含 `PIL`、`python-pptx`；`pymupdf` 由脚本自动安装）、LibreOffice（`soffice`，PPT 输入必需）、`git`（仅复盘升级用）
 - 项目已 clone：`/Users/gaothinkin/Coding/gaothink.in`
 - 提取脚本：本 skill `scripts/extract_slides.py`
-- 术语表与禁用词表复用 `gwrite-weekly-skill`（§A1/A2）
+- 术语表与禁用词表复用 `gao-weekly-skill`（§A1/A2）
 - 预览复用本 repo `scripts/write-server.mjs`（gwrite 预览，本地图自动 base64 内联）
 
 ---
@@ -233,7 +233,7 @@ curl -sS "http://127.0.0.1:45678/api/preview-html?id=$ID" -o /tmp/preview-zh.htm
 
 ## §5 复盘与自升级（每次调用完成后必做）
 
-部署验证通过后执行。**收集 → 三原理过滤 → 弹窗确认 → 升级推送**，四步走（同 gwrite-weekly-skill §5）：
+部署验证通过后执行。**收集 → 三原理过滤 → 弹窗确认 → 升级推送**，四步走（同 gao-weekly-skill §5）：
 
 ### 5.1 收集观察
 
