@@ -4,10 +4,11 @@ gao-wepost-ppt-skill 幻灯片提取器
 
 输入: 1-N 份 .ppt/.pptx/.pdf
 流程:
-  1. PPTX/PPT → PDF (LibreOffice soffice, 必需)
+  1. PPTX/PPT → PDF (优先 Microsoft PowerPoint，字体/颜色保真更好；
+     缺失或失败时用 LibreOffice soffice 兜底)
   2. PDF 逐页渲染 → PNG (pymupdf, 自动安装)
   3. 视频页过滤: 黑像素占比 > --dark-ratio 且 文本为空/仅时间码 → 过滤
-  4. 文本提取 (pymupdf; pptx 无 soffice 时用 python-pptx 兜底)
+  4. 文本提取 (pymupdf; pptx 无转换器时用 python-pptx 兜底)
 输出: {outdir}/{stem}/slides/slide-{NN}.png + manifest.json
 
 用法:
@@ -67,13 +68,62 @@ def find_soffice():
     return None
 
 
+def find_powerpoint():
+    """定位 Microsoft PowerPoint（macOS 优先，字体/颜色保真优于 LibreOffice）。"""
+    mac_path = "/Applications/Microsoft PowerPoint.app"
+    if sys.platform == "darwin" and os.path.isdir(mac_path):
+        return mac_path
+    return None
+
+
+def pptx_to_pdf_via_powerpoint(src, outdir):
+    """用 Microsoft PowerPoint 的 AppleScript 导出 PDF（保留字体/颜色）。
+
+    返回 PDF 路径；PowerPoint 缺失、超时或导出失败时抛 RuntimeError。
+    """
+    app_path = find_powerpoint()
+    if not app_path:
+        raise RuntimeError("未找到 Microsoft PowerPoint")
+    stem = os.path.splitext(os.path.basename(src))[0]
+    pdf_path = os.path.join(outdir, stem + ".pdf")
+    if os.path.exists(pdf_path):
+        os.remove(pdf_path)
+    script = (
+        'tell application "Microsoft PowerPoint"\n'
+        f'  open POSIX file {json.dumps(os.path.abspath(src))}\n'
+        f'  save active presentation in POSIX file {json.dumps(pdf_path)} '
+        "as save as PDF\n"
+        '  close active presentation saving no\n'
+        "end tell\n"
+    )
+    try:
+        r = subprocess.run(
+            ["osascript", "-e", script], capture_output=True, text=True, timeout=300,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("PowerPoint 导出超时（首次启动可能较慢）")
+    if r.returncode != 0 or not os.path.exists(pdf_path):
+        detail = (r.stderr or r.stdout or "").strip().splitlines()
+        raise RuntimeError(
+            f"PowerPoint 导出失败: {detail[-1] if detail else '未生成 PDF'}"
+        )
+    return pdf_path
+
+
 def pptx_to_pdf(src, outdir):
-    """PPTX/PPT → PDF。返回 PDF 路径；soffice 缺失则抛错。"""
+    """PPTX/PPT → PDF。优先 Microsoft Office（字体/颜色保真），缺失则用 LibreOffice。"""
+    if find_powerpoint():
+        print(f"[extract] 使用 Microsoft PowerPoint 导出 PDF（字体/颜色保真优先）...")
+        try:
+            return pptx_to_pdf_via_powerpoint(src, outdir)
+        except RuntimeError as e:
+            print(f"[extract]  {e}，降级 LibreOffice soffice...")
     soffice = find_soffice()
     if not soffice:
         raise RuntimeError(
-            f"{os.path.basename(src)} 是 PPT 格式，需要 LibreOffice 转换。\n"
-            "请先安装: brew install --cask libreoffice\n"
+            f"{os.path.basename(src)} 是 PPT 格式，需要转换器。\n"
+            "优先安装 Microsoft Office（字体/颜色保真最好）；\n"
+            "或安装 LibreOffice: brew install --cask libreoffice\n"
             "或手动用「文件 → 导出为 PDF」转换后再输入 PDF。"
         )
     subprocess.run(
@@ -172,7 +222,7 @@ def process_file(src, outdir, dpi, ratio=DEFAULT_RATIO, threshold=DEFAULT_THRESH
     pdf_path = src
     texts = None
     if ext in (".ppt", ".pptx"):
-        print(f"[extract] {os.path.basename(src)}: PPT → PDF (soffice)...")
+        print(f"[extract] {os.path.basename(src)}: PPT → PDF（Office/LibreOffice）...")
         pdf_path = pptx_to_pdf(src, tmpdir)
         if ext == ".pptx":
             texts = pptx_texts(src)

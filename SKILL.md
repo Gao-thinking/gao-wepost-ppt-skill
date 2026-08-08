@@ -11,14 +11,14 @@ description: >
 ## TL;DR（老手速查）
 
 ```
-需求对话（文件+框架） → 自动提取幻灯片[打断1: 视频页过滤确认]
+自动热更新(静默) → 需求对话（文件+框架） → 自动提取幻灯片[打断1: 视频页过滤确认]
 → 贝叶斯筛选页 → 嵌入框架成文（zh） → 校对（反AI≥45）
 → 拷打(自动50/50) → 自动gwrite预览 → 交付总结（不部署不提交）
 ```
 
 ## 前置准备
 
-- 工具：`python3`（含 `PIL`、`python-pptx`；`pymupdf` 由脚本自动安装）、LibreOffice（`soffice`，PPT 输入必需）、`git`（仅复盘升级用）
+- 工具：`python3`（含 `PIL`、`python-pptx`；`pymupdf` 由脚本自动安装）、PPT→PDF 转换器（**优先 Microsoft Office**，字体/颜色保真更好；缺失时 LibreOffice `soffice` 兜底；只收 PDF 可完全不要）、`git`（仅复盘升级用）
 - 项目已 clone：`/Users/gaothinkin/Coding/gaothink.in`
 - 提取脚本：本 skill `scripts/extract_slides.py`
 - 术语表与禁用词表复用 `gao-weekly-skill`（§A1/A2）
@@ -60,7 +60,7 @@ description: >
 
 | 输入 | 说明 |
 |------|------|
-| PPT/PDF 文件 | 1-N 份。`.pdf` 直接处理；`.ppt/.pptx` 经 LibreOffice 转 PDF |
+| PPT/PDF 文件 | 1-N 份。`.pdf` 直接处理；`.ppt/.pptx` 经转换器转 PDF（**优先 Microsoft Office**，字体/颜色保真更好；缺失时自动降级 LibreOffice） |
 | 格式框架 | md 格式约束文件（用户提供，含章节结构/占位符/字数要求）。**无框架** → 用 §2.2 内置模板 |
 
 **输出**：`content/blog/zh/{date}-{slug}.mdx`（中文单语）+ 同目录 `.assets/` 幻灯片图。**不 git 提交、不部署、不上传 CDN**。
@@ -130,6 +130,24 @@ locale: zh
 
 **交互原则**（JTBD + 奥卡姆）：只打断 1 次：**过滤确认**。异常才弹窗（反AI <45、拷打 <50、预览失败）。每个 `question` 都标 `(Recommended)`。
 
+### Step 0: 自动热更新（静默，不弹窗）
+
+每次调用开始时先自更新，保证跑的是最新版规则/脚本：
+
+```bash
+cd ~/.agents/skills/gao-wepost-ppt-skill
+git fetch origin -q 2>/dev/null || true
+BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+if [ "$BEHIND" -gt 0 ]; then
+  git pull --ff-only origin main -q 2>/dev/null && echo "[hot-update] 已更新 ${BEHIND} 个提交 → $(git rev-parse --short HEAD)"
+fi
+```
+
+- 有本地未提交改动（`git status --porcelain` 非空）→ **跳过自动 pull**，用当前版本继续，交付总结里提示「本地有改动，未热更新」
+- pull 失败（网络/冲突）→ 静默跳过，继续用当前版本，不打断流程
+- 更新后若有新 `scripts/` 变化，本流程直接使用新脚本，无需重启
+- 复盘 §5.4 的 push 链路不变：本次调用结束如有升级提交，下一次调用会自动拉回
+
 ### Step 1: 需求对话
 
 收集以下信息（用户没说全才追问，**最多追 1 问**）：
@@ -152,7 +170,7 @@ python3 ~/.agents/skills/gao-wepost-ppt-skill/scripts/extract_slides.py \
 
 支持多文件：`-i a.pdf -i b.pptx`（多份 deck 时各自独立 manifest，输出按文件分目录）。
 
-脚本自动：PPTX→PDF（soffice）→ 逐页渲染 PNG → 黑占比检测 → 文本提取 → 写 `manifest.json`。
+脚本自动：PPTX→PDF（**优先 Microsoft Office** 导出，字体/颜色保真更好；缺失/失败自动降级 LibreOffice soffice）→ 逐页渲染 PNG → 黑占比检测 → 文本提取 → 写 `manifest.json`。
 
 #### 2.2 读取 manifest
 
@@ -213,6 +231,17 @@ curl -sS "http://127.0.0.1:45678/api/preview-html?id=$ID" -o /tmp/preview-zh.htm
 
 自动判断：✅ 通过（预览 HTML 含全部 N 张图）→ 进入交付总结；❌ 失败 → 弹框（重试 / 跳过预览直接交付）。
 
+**预览页内置排版工具**（微信排版工具风格，全部走 CSS 变量、跨刷新保留、localStorage 记忆）：
+- 主题切换：Kami / Clean / Paper / Dark / WeChat
+- 字号滑块（12-22px，标题等比缩放）
+- 行距：1.5 / 1.75 / 2.0 / 2.5
+- 对齐：左 / 中 / 两端
+- 引用强调色：跟随主题 / 微信绿 / 品牌蓝 / 红 / 灰
+- 分隔线：跟随主题 / 实线 / 虚线 / 点线
+- 图片圆角：跟随主题 / 0 / 4 / 8 / 12px
+
+**一键复制到微信**：预览页右上「复制全文」→ 生成**每元素内联样式**的富文本（微信后台剥离 `<style>`，内联才能生效）→ 剪贴板 text/html → 直接粘贴到公众号编辑器。链接自动补全为绝对 href，**粘贴后支持点击跳转**；批注高亮（.gao-hl）自动剥离，不会带进正文。
+
 #### 4.3 交付总结（不部署不提交）
 
 产出就绪后向用户汇报（不弹框）：
@@ -223,11 +252,12 @@ curl -sS "http://127.0.0.1:45678/api/preview-html?id=$ID" -o /tmp/preview-zh.htm
   图片：N 张（content/blog/assets/{date}-{slug}.assets/slide-*.png）
   视频页已过滤：M 个（原始页 3, 9, 12）
   预览：http://127.0.0.1:45678/api/preview-html?id={ID}（服务关闭即失效）
+  微信交付：预览页点「复制全文」→ 直接粘贴到公众号编辑器（链接可跳转）
 ```
 
 **明确不做**：`git add/commit/push`、`pnpm assets:upload`、`Deploy` tag。
 
-**后续发布指引**（告知用户，不执行）：确认满意后手动 `pnpm assets:upload` + 提交 + 推送，即可按正常博客流程上线；或直接复制正文到公众号编辑器粘贴图片。
+**后续发布指引**（告知用户，不执行）：确认满意后手动 `pnpm assets:upload` + 提交 + 推送，即可按正常博客流程上线；或复制正文到公众号编辑器粘贴图片。**微信发布默认走预览页「复制全文」**（所见即所得，含排版与链接）；如要走草稿箱自动发布，用 `node scripts/wechat-publish.mjs`（配置 `~/.wechat-publish.json`，可 `doctor` 自检）。
 
 ---
 
@@ -242,7 +272,7 @@ curl -sS "http://127.0.0.1:45678/api/preview-html?id=$ID" -o /tmp/preview-zh.htm
 | 弹窗 | 用户选了非推荐项？手动输入了什么？ |
 | 流程 | 中断/重试几次？视频页误判几页？脚本报错类型？ |
 | 反馈 | 用户口头纠正、抱怨、额外要求 |
-| 环境 | soffice/pymupdf 行为变化；repo 结构变化；新踩的坑 |
+| 环境 | Office/soffice/pymupdf 行为变化；repo 结构变化；新踩的坑 |
 
 ### 5.2 三原理过滤（候选 → 升级项，全部通过才算）
 
@@ -276,6 +306,9 @@ git -C ~/.agents/skills/gao-wepost-ppt-skill push origin main
 python3 -m pip install --user pymupdf Pillow python-pptx
 
 # PPTX → PDF 转换器（.ppt/.pptx 输入必需；只收 PDF 可跳过）
+# 优先 Microsoft Office：装好 PowerPoint 即可，脚本自动检测（macOS: /Applications/Microsoft PowerPoint.app），
+#   用 AppleScript 导出，字体/颜色保真最好
+# 缺失时兜底 LibreOffice：
 brew install --cask libreoffice
 ```
 
@@ -305,10 +338,17 @@ dark_ratio > 0.80 且 text 丰富          → 深色设计页（保留，标注
 ### A4 踩坑
 
 - **pymupdf 安装失败**（无网络/权限）：需用户手动装或换机器；`brew install poppler` 后可用 pdftoppm 替代（脚本暂未集成）
+- **Office 首次导出慢**：Microsoft PowerPoint 首次启动/被 osascript 唤起约 10-30s，属正常；导出失败或超时会自动降级 soffice；两者都没有 → 提示安装或手动导出 PDF
+- **Office 自动导出需授权**：macOS 首次用 osascript 控制 PowerPoint 会弹「自动化」授权框，需允许一次；拒绝后脚本走 soffice 兜底
+- **Office open 报 -9074**：`open` 一步报 `-9074` 且 `quit` 被拒（-128）→ PowerPoint 未激活或卡在模态弹窗，属环境问题；脚本已自动降级 soffice，无需处理。若确认 Office 已激活仍复现，可手动在 PowerPoint 里导出 PDF 再输入
 - **soffice 首次转换慢**：LibreOffice 首次启动约 10-30s，属正常；转换失败检查文件是否加密/损坏
 - **黑底白字设计页误判**：严格按双重证据（黑占比 + 文本），只在两者都满足才过滤；打断1 会列出全部黑占比 >80% 的页供用户复核
 - **多份 deck**：每份独立 manifest，正文按文件分章节，附录表分文件列出
 - **gwrite 预览 500**：`file` 参数不含 locale 前缀（`?target=blog&locale=zh&file={slug}.mdx`，不能写 `zh/{slug}.mdx`）；预览服务关闭后 ID 失效，重跑预览即可
+- **热更新被本地改动挡住**：本地有未提交改动时自动 pull 会跳过（按设计），交付总结里提示即可；`git stash` 后可手动拉取
+- **预览排版设定不生效**：检查预览页是否被旧版服务缓存（重启 `node scripts/write-server.mjs`）；设定存 localStorage，换浏览器会重置
+- **微信粘贴后样式丢失**：必须用预览页「复制全文」（内联样式）；直接复制浏览器页面 HTML 到公众号会被剥离 `<style>` 导致排版失效
+- **微信粘贴后链接不可点**：确认链接是绝对 URL（预览复制会自动补全 origin）；公众号后台对部分外链需「原文链接」设置，正文 `<a>` 跳转按官方规则生效
 
 ### A5 元规则
 
