@@ -257,7 +257,30 @@ curl -sS "http://127.0.0.1:45678/api/preview-html?id=$ID" -o /tmp/preview-zh.htm
 
 **明确不做**：`git add/commit/push`、`pnpm assets:upload`、`Deploy` tag。
 
-**后续发布指引**（告知用户，不执行）：确认满意后手动 `pnpm assets:upload` + 提交 + 推送，即可按正常博客流程上线；或复制正文到公众号编辑器粘贴图片。**微信发布默认走预览页「复制全文」**（所见即所得，含排版与链接）；如要走草稿箱自动发布，用 `node scripts/wechat-publish.mjs`（配置 `~/.wechat-publish.json`，可 `doctor` 自检）。
+**后续发布指引**（告知用户，不执行）：确认满意后手动 `pnpm assets:upload` + 提交 + 推送，即可按正常博客流程上线；或复制正文到公众号编辑器粘贴图片。**微信发布默认走预览页「复制全文」**（所见即所得，含排版与链接）；如要走草稿箱自动发布 → 见 §4.4。
+
+#### 4.4 微信草稿箱自动发布（可选，需认证公众号）
+
+走本 repo `scripts/wechat-publish.mjs`，一条命令完成 渲染→传图→草稿箱：
+
+**凭证配置**（二选一，凭证不进 git）：
+- 文件：`~/.wechat-publish.json` → `{ "appid": "wx...", "secret": "...", "author": "作者名" }`
+- 环境变量：`WECHAT_APPID` / `WECHAT_APPSECRET`（仅在实际设置时才覆盖文件，脚本已修此 bug）
+
+**命令**：
+```bash
+node scripts/wechat-publish.mjs doctor                          # ① 自检凭证+连通性
+node scripts/wechat-publish.mjs draft <file.mdx>                # ② 传图→草稿箱（后台可预览确认）
+node scripts/wechat-publish.mjs draft <file.mdx> --publish      # ③ 直接群发（审核 1-15 分钟）
+node scripts/wechat-publish.mjs render <file.mdx> -o out.html   # 只出 HTML 不上传
+```
+
+**踩坑（必读）**：
+- **40164 IP 白名单**：微信要求出口 IP 进公众号后台白名单（设置与开发→基本配置）；**报错里返回的 IP 才是真实出口**（本机 Clash 代理规则分流会导致 curl 测出的 IP ≠ 微信看到的，一律以报错为准）；CGNAT 动态 IP 会漂移，报新 IP 就加新 IP，长期方案 = 国内云服务器固定出口
+- **2 万字符上限**：草稿能建但群发大概率失败（45004），长文先删减或分篇
+- **样式复刻参考文章**：抓参考文章 HTML → 统计 `color`/`font-size`/`font-family` 频率 → 提取 blockquote/h1-h3 实际样式 → 复刻进 `STYLE_RULES`；本仓库默认风格：主色 `#1F4F8A`、正文 14px `#555`、引用斜体+3px 左边框、PingFang SC
+- **md2wechat CLI 只作样式参考**：`md2wechat themes list` 查主题，`convert --mode ai --theme ocean-calm`（免费 AI 模式）只产出样式 prompt 由 LLM 执行；API 模式需付费 `MD2WECHAT_API_KEY`，实际渲染仍走本地 `wechat-publish.mjs`
+- **验证草稿**：查询草稿箱用 POST `/cgi-bin/draft/batchget`（GET 报 43002），`no_content=1` 轻量确认标题/media_id 在库
 
 ---
 
